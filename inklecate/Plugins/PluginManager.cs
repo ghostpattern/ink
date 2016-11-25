@@ -13,6 +13,8 @@ namespace Ink
             foreach (string pluginName in pluginNames) {
                 if (pluginName == "ChoiceListPlugin") {
                     _plugins.Add (new InkPlugin.ChoiceListPlugin ());
+                } else if (pluginName == "LineMarkupPrefixPlugin") {
+                    _plugins.Add (new InkPlugin.LineMarkupPrefixPlugin());
                 } else {
                     throw new SystemException ("Plugin not found");
                 }
