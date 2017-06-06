@@ -16,7 +16,7 @@ namespace InkPlugin
         {
         }
 
-        public void PostParse(Ink.Parsed.Story parsedStory)
+        public void PostParse(Story parsedStory, CommandLineTool.Options opts)
         {
             // Nothing
         }

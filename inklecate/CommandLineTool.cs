@@ -8,7 +8,7 @@ namespace Ink
 {
 	class CommandLineTool
 	{
-		class Options {
+		public class Options {
 			public bool testMode;
             public bool stressTest;
             public bool verbose;
@@ -125,7 +125,7 @@ namespace Ink
                 });
 
                 TimeOperation ("PostParsePlugins", () => {
-                    pluginManager.PostParse(parsedStory);
+                    pluginManager.PostParse(parsedStory, opts);
                 });
 
                 if (parsedStory != null) {

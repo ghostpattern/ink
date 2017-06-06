@@ -43,7 +43,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Plugins\LineMarkupPrefixPlugin.cs" />
+    <Compile Include="Plugins\ExtraDataOutputPlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="CommandLineTool.cs" />
     <Compile Include="CharacterSet.cs" />

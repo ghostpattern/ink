@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Ink.Parsed;
 
 namespace Ink
 {
@@ -13,18 +14,18 @@ namespace Ink
             foreach (string pluginName in pluginNames) {
                 if (pluginName == "ChoiceListPlugin") {
                     _plugins.Add (new InkPlugin.ChoiceListPlugin ());
-                } else if (pluginName == "LineMarkupPrefixPlugin") {
-                    _plugins.Add (new InkPlugin.LineMarkupPrefixPlugin());
+                } else if (pluginName == "ExtraDataOutputPlugin") {
+                    _plugins.Add (new InkPlugin.ExtraDataOutputPlugin());
                 } else {
                     throw new SystemException ("Plugin not found");
                 }
             }
         }
 
-        public void PostParse(Parsed.Story parsedStory)
+        public void PostParse(Story parsedStory, CommandLineTool.Options opts)
         {
             foreach (var plugin in _plugins) {
-                plugin.PostParse (parsedStory);
+                plugin.PostParse (parsedStory, opts);
             }
         }
 
