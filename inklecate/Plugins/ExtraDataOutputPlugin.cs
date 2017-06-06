@@ -20,9 +20,12 @@ namespace InkPlugin
 
         public void PostParse(Story parsedStory, CommandLineTool.Options opts)
         {
-            var choiceJsonArray = new List<object>();
-            var lineJsonArray = new List<object>();
-            var knotJsonArray = new List<object>();
+            var choiceTextList = new List<Text>();
+            var lineTextList = new List<Text>();
+
+            var choiceJsonList = new List<object>();
+            var lineJsonList = new List<object>();
+            var knotJsonList = new List<object>();
             
             var allChoices = parsedStory.FindAll<Choice>();
             foreach(Choice choice in allChoices)
@@ -32,8 +35,8 @@ namespace InkPlugin
                     Text firstText = choice.startContent.content[0] as Text;
                     if(firstText != null)
                     {
-                        choiceJsonArray.Add(firstText.text);
-                        lineJsonArray.Add(firstText.text);
+                        choiceTextList.Add(firstText);
+                        lineTextList.Add(firstText);
                     }
                 }
                 else if(choice.choiceOnlyContent != null)
@@ -41,7 +44,7 @@ namespace InkPlugin
                     Text firstText = choice.choiceOnlyContent.content[0] as Text;
                     if(firstText != null)
                     {
-                        choiceJsonArray.Add(firstText.text);
+                        choiceTextList.Add(firstText);
                     }
                 }
                 else if(choice.innerContent != null)
@@ -49,8 +52,8 @@ namespace InkPlugin
                     Text firstText = choice.innerContent.content[0] as Text;
                     if(firstText != null)
                     {
-                        choiceJsonArray.Add(firstText.text);
-                        lineJsonArray.Add(firstText.text);
+                        choiceTextList.Add(firstText);
+                        lineTextList.Add(firstText);
                     }
                 }
             }
@@ -60,28 +63,41 @@ namespace InkPlugin
             {
                 if(text.text != null && text.text.Equals("\n") == false)
                 {
-                    lineJsonArray.Add(text.text);
+                    if(choiceTextList.Contains(text) == false && lineTextList.Contains(text) == false)
+                    {
+                        lineTextList.Add(text);
+                    }
                 }
+            }
+
+            foreach(Text choiceText in choiceTextList)
+            {
+                choiceJsonList.Add(choiceText.text);
+            }
+
+            foreach(Text lineText in lineTextList)
+            {
+                lineJsonList.Add(lineText.text);
             }
 
             var allKnots = parsedStory.FindAll<Knot>();
             foreach(var knot in allKnots)
             {
                 if(knot.debugMetadata.fileName.Equals(opts.inputFile))
-                    knotJsonArray.Add(knot.name);
+                    knotJsonList.Add(knot.name);
             }
 
             Dictionary<string, object> dataDictionary = new Dictionary<string, object>
             {
-                {"ChoiceList", choiceJsonArray},
-                {"LineList", lineJsonArray},
-                {"KnotList", knotJsonArray}
+                {"ChoiceList", choiceJsonList},
+                {"LineList", lineJsonList},
+                {"KnotList", knotJsonList}
             };
 
 
             var jsonString = SimpleJson.DictionaryToText(dataDictionary);
 
-            string outputFile = opts.outputFile.Replace(".json", "_inkdata.json");
+            string outputFile = opts.outputFile.Replace(".json", "_extradata.json");
 
             File.WriteAllText(outputFile, jsonString, System.Text.Encoding.UTF8);
         }
