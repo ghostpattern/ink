@@ -37,6 +37,7 @@ namespace InkPlugin
                     {
                         choiceTextList.Add(firstText);
                         lineTextList.Add(firstText);
+                        firstText.text = ProcessLineKey(firstText.text, "%^CHOICE&LINE%^");
                     }
                 }
                 else if(choice.choiceOnlyContent != null)
@@ -45,6 +46,7 @@ namespace InkPlugin
                     if(firstText != null)
                     {
                         choiceTextList.Add(firstText);
+                        firstText.text = ProcessLineKey(firstText.text, "%^CHOICE%^");
                     }
                 }
                 else if(choice.innerContent != null)
@@ -54,6 +56,7 @@ namespace InkPlugin
                     {
                         choiceTextList.Add(firstText);
                         lineTextList.Add(firstText);
+                        firstText.text = ProcessLineKey(firstText.text, "%^CHOICE&LINE%^");
                     }
                 }
             }
@@ -63,21 +66,22 @@ namespace InkPlugin
             {
                 if(text.text != null && text.text.Equals("\n") == false)
                 {
-                    if(choiceTextList.Contains(text) == false && lineTextList.Contains(text) == false)
+                    if(text.text.StartsWith("%^") == false)
                     {
                         lineTextList.Add(text);
+                        text.text = ProcessLineKey(text.text, "%^LINE%^");
                     }
                 }
             }
 
             foreach(Text choiceText in choiceTextList)
             {
-                choiceJsonList.Add(choiceText.text);
+                choiceJsonList.Add(choiceText.text.Substring(choiceText.text.LastIndexOf("%^", StringComparison.Ordinal) + 2));
             }
 
             foreach(Text lineText in lineTextList)
             {
-                lineJsonList.Add(lineText.text);
+                lineJsonList.Add(lineText.text.Substring(lineText.text.LastIndexOf("%^", StringComparison.Ordinal) + 2));
             }
 
             var allKnots = parsedStory.FindAll<Knot>();
@@ -94,7 +98,6 @@ namespace InkPlugin
                 {"KnotList", knotJsonList}
             };
 
-
             var jsonString = SimpleJson.DictionaryToText(dataDictionary);
 
             string outputFile = opts.outputFile.Replace(".json", "_extradata.json");
@@ -104,6 +107,13 @@ namespace InkPlugin
 
         public void PostExport(Ink.Parsed.Story parsedStory, Ink.Runtime.Story runtimeStory)
         {
+        }
+
+        private string ProcessLineKey(string text, string type)
+        {
+            text = text.Insert(0, type);
+
+            return text;
         }
     }
 }
