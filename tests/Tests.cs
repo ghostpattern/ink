@@ -60,8 +60,8 @@ VAR global_var = 5
 ", testingErrors: true);
 
             Assert.AreEqual(2, _errorMessages.Count);
-            Assert.IsTrue(HadError("conflicts with a Knot"));
-            Assert.IsTrue(HadError("conflicts with existing variable"));
+            Assert.IsTrue(HadError("name has already been used for a function"));
+            Assert.IsTrue(HadError("name has already been used for a var"));
         }
 
         [Test()]
@@ -202,12 +202,15 @@ Hello
         public void TestChoiceCount()
         {
             Story story = CompileString(@"
-* one -> end
-* two -> end
+<- choices
 { CHOICE_COUNT() }
 
 = end
 -> END
+
+= choices
+* one -> end
+* two -> end
 ");
 
             Assert.AreEqual("2\n", story.Continue());
@@ -879,18 +882,11 @@ Hello world
         }
 
         [Test()]
-        public void TestGatherAtFlowEnd()
+        public void TestDisallowEmptyDiverts()
         {
-            // The final "->" doesn't have anywhere to go, so it should
-            // happily just go to the end of the flow.
-            var storyStr = "- nothing ->";
+            CompileStringWithoutRuntime ("->", testingErrors: true);
 
-            Story story = CompileString(storyStr);
-
-            // Hrm: terminating space is a little bit silly
-            // (it's because the divert arrow forces a little bit of
-            // whitespace in case you're diverting straight into another line)
-            Assert.AreEqual("nothing ", story.ContinueMaximally());
+            Assert.IsTrue (HadError ("Empty diverts (->) are only valid on choices"));
         }
 
         [Test()]
@@ -2231,7 +2227,7 @@ VAR val = 5
                 @"
 == TestKnot ==
 this is a test
-+ Next -> TestKnot2
++ [Next] -> TestKnot2
 
 == TestKnot2 ==
 this is the end
@@ -2281,7 +2277,7 @@ this is the end
 -> DONE
 
 === function f(ref x)
-~temp local
+~temp local = 0
 ~x=x
 {setTo3(local)}
 
@@ -2412,6 +2408,46 @@ x = {x}, y = {y}
         }
 
         [Test ()]
+        public void TestEvaluatingFunctionVariableStateBug ()
+        {
+            var storyStr =
+                @"
+Start
+-> tunnel ->
+End
+-> END
+
+== tunnel ==
+In tunnel.
+->->
+
+=== function function_to_evaluate() ===
+    { zero_equals_(1):
+        ~ return ""WRONG""
+    - else:
+        ~ return ""RIGHT""
+    }
+
+=== function zero_equals_(k) ===
+    ~ do_nothing(0)
+    ~ return  (0 == k)
+
+=== function do_nothing(k)
+    ~ return 0
+";
+
+            Story story = CompileString (storyStr);
+
+            Assert.AreEqual ("Start\n", story.Continue ());
+            Assert.AreEqual ("In tunnel.\n", story.Continue ());
+
+            var funcResult = story.EvaluateFunction ("function_to_evaluate");
+            Assert.AreEqual ("RIGHT", funcResult);
+
+            Assert.AreEqual ("End\n", story.Continue ());
+        }
+
+        [Test ()]
         public void TestDoneStopsThread ()
         {
             var storyStr =
@@ -2515,6 +2551,7 @@ CONST z = -> elsewhere
             Assert.IsTrue (HadError ("'z' has been redefined"));
         }
 
+        [Test ()]
         public void TestTags ()
         {
             var storyStr =
@@ -2552,10 +2589,10 @@ Stitch content
             stitchTags.Add ("stitch tag");
 
             Assert.AreEqual (globalTags, story.globalTags);
-            Assert.AreEqual("This is the content\n", story.Continue ());
+            Assert.AreEqual ("This is the content\n", story.Continue ());
             Assert.AreEqual (globalTags, story.currentTags);
 
-            Assert.AreEqual (knotTags, story.TagsForContentAtPath("knot"));
+            Assert.AreEqual (knotTags, story.TagsForContentAtPath ("knot"));
             Assert.AreEqual (stitchTags, story.TagsForContentAtPath ("knot.stitch"));
 
             story.ChoosePathString ("knot");
@@ -2565,6 +2602,7 @@ Stitch content
             Assert.AreEqual (knotTagWhenContinuedTwice, story.currentTags);
         }
 
+        [Test ()]
         public void TestTunnelOnwardsDivertOverride ()
         {
             var storyStr =
@@ -2585,6 +2623,341 @@ Now in B.
             Assert.AreEqual ("This is A\nNow in B.\n", story.ContinueMaximally());
         }
 
+        [Test ()]
+        public void TestListBasicOperations ()
+        {
+            var storyStr =
+                @"
+LIST list = a, (b), c, (d), e
+{list}
+{(a, c) + (b, e)}
+{(a, b, c) ^ (c, b, e)}
+{list ? (b, d, e)}
+{list ? (d, b)}
+{list !? (c)}
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("b, d\na, b, c, e\nb, c\n0\n1\n1\n", story.ContinueMaximally ());
+        }
+
+
+        [Test ()]
+        public void TestListMixedItems ()
+        {
+            var storyStr =
+                @"
+LIST list = (a), b, (c), d, e
+LIST list2 = x, (y), z
+{list + list2}
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("a, y, c\n", story.ContinueMaximally ());
+        }
+
+
+        [Test ()]
+        public void TestMoreListOperations ()
+        {
+            var storyStr =
+                @"
+LIST list = l, m = 5, n
+{LIST_VALUE(l)}
+
+{list(1)}
+
+~ temp t = list()
+~ t += n
+{t}
+~ t = LIST_ALL(t)
+~ t -= n
+{t}
+~ t = LIST_INVERT(t)
+{t}
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("1\nl\nn\nl, m\nn\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestEmptyListOrigin ()
+        {
+            var storyStr =
+                @"
+LIST list = a, b
+{LIST_ALL(list)}
+
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("a, b\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestEmptyListOriginAfterAssignment ()
+        {
+            var storyStr =
+                @"
+LIST x = a, b, c
+~ x = ()
+{LIST_ALL(x)}
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("a, b, c\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestListSaveLoad ()
+        {
+            var storyStr =
+                @"
+LIST l1 = (a), b, (c)
+LIST l2 = (x), y, z
+
+VAR t = ()
+~ t = l1 + l2
+{t}
+
+== elsewhere ==
+~ t += z
+{t}
+-> END
+";
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("a, x, c\n", story.ContinueMaximally ());
+
+            var savedState = story.state.ToJson ();
+
+            // Compile new version of the story
+            story = CompileString (storyStr);
+
+            // Load saved game
+            story.state.LoadJson (savedState);
+
+            story.ChoosePathString ("elsewhere");
+            Assert.AreEqual ("a, x, c, z\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestEmptyThreadError ()
+        {
+            CompileStringWithoutRuntime ("<-", testingErrors:true);
+            Assert.IsTrue (HadError ("Expected target for new thread"));
+        }
+
+        [Test ()]
+        public void TestAuthorWarningsInsideContentListBug ()
+        {
+            var storyStr =
+                @"
+{ once:
+- a
+TODO: b
+}
+";
+            CompileString (storyStr, testingErrors:true);
+            Assert.IsFalse (HadError ());
+        }
+
+        [Test ()]
+        public void TestWeaveWithinSequence ()
+        {
+            var storyStr =
+                @"
+{ shuffle:
+-   * choice
+    nextline
+}
+";
+            var story = CompileString (storyStr);
+
+            story.Continue ();
+
+            Assert.IsTrue (story.currentChoices.Count == 1);
+
+            story.ChooseChoiceIndex (0);
+
+            Assert.AreEqual ("choice\nnextline\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestWeavePointNamingCollision ()
+        {
+        	var storyStr =
+        		@"
+-(opts)
+opts1
+-(opts)
+opts1
+-> END
+";
+        	CompileString (storyStr, countAllVisits: false, testingErrors:true);
+
+            Assert.IsTrue(HadError ("with the same label"));
+        }
+
+        [Test ()]
+        public void TestVariableNamingCollisionWithFlow ()
+        {
+        	var storyStr =
+        		@"
+LIST someList = A, B
+
+~temp heldItems = (A) 
+{LIST_COUNT (heldItems)}
+
+=== function heldItems ()
+~ return (A)
+        ";
+        	CompileString (storyStr, countAllVisits: false, testingErrors: true);
+
+        	Assert.IsTrue (HadError ("name has already been used for a function"));
+        }
+
+        [Test ()]
+        public void TestVariableNamingCollisionWithArg ()
+        {
+        	var storyStr =
+        		@"=== function knot (a)
+        			~temp a = 1";
+            
+        	CompileString (storyStr, countAllVisits: false, testingErrors: true);
+
+        	Assert.IsTrue (HadError ("has already been used"));
+        }
+
+        [Test ()]
+        public void TestTunnelOnwardsDivertAfterWithArg ()
+        {
+        	var storyStr =
+@"
+-> a ->  
+
+=== a === 
+->-> b (5 + 3)
+
+=== b (x) ===
+{x} 
+-> END
+";
+
+            var story = CompileString (storyStr);
+
+            Assert.AreEqual ("8\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestVariousDefaultChoices ()
+        {
+            var storyStr =
+@"
+* -> hello
+Unreachable
+- (hello) 1
+* ->
+   - - 2
+- 3
+* [] ->
+- 4
+-> END
+";
+
+            var story = CompileString (storyStr);
+            Assert.AreEqual ("1\n2\n3\n4\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestTunnelOnwardsWithParamDefaultChoice ()
+        {
+        	var storyStr =
+@"
+-> tunnel ->
+
+== tunnel ==
+* ->-> elsewhere (8)
+
+== elsewhere (x) ==
+{x}
+-> END
+";
+
+        	var story = CompileString (storyStr);
+        	Assert.AreEqual ("8\n", story.ContinueMaximally ());
+        }
+
+
+        [Test ()]
+        public void TestReadCountVariableTarget ()
+        {
+        	var storyStr =
+@"
+VAR x = ->knot
+
+Count start: {READ_COUNT (x)} {READ_COUNT (-> knot)} {knot}
+
+-> x (1) ->
+-> x (2) ->
+-> x (3) ->
+
+Count end: {READ_COUNT (x)} {READ_COUNT (-> knot)} {knot}
+-> END
+
+
+== knot (a) ==
+{a}
+->->
+";
+
+        	var story = CompileString (storyStr, countAllVisits:true);
+        	Assert.AreEqual ("Count start: 0 0 0\n1\n2\n3\nCount end: 3 3 3\n", story.ContinueMaximally ());
+        }
+
+
+        [Test ()]
+        public void TestDivertTargetsWithParameters ()
+        {
+        	var storyStr =
+@"
+VAR x = ->place
+
+->x (5)
+
+== place (a) ==
+{a}
+-> DONE
+";
+
+        	var story = CompileString (storyStr);
+
+        	Assert.AreEqual ("5\n", story.ContinueMaximally ());
+        }
+
+        [Test ()]
+        public void TestTagOnChoice ()
+        {
+        	var storyStr =
+@"
+* [Hi] Hello -> END #hey
+";
+
+        	var story = CompileString (storyStr);
+
+            story.Continue ();
+
+            story.ChooseChoiceIndex (0);
+
+            var txt = story.Continue ();
+            var tags = story.currentTags;
+
+            Assert.AreEqual (" Hello\n", txt); // argh need to fix space?
+            Assert.AreEqual (1, tags.Count);
+            Assert.AreEqual ("hey", tags[0]);
+        }
+
         // Helper compile function
         protected Story CompileString(string str, bool countAllVisits = false, bool testingErrors = false)
         {
@@ -2597,10 +2970,11 @@ Now in B.
             parsedStory.countAllVisits = countAllVisits;
 
             Story story = parsedStory.ExportRuntime(TestErrorHandler);
-            Assert.AreNotEqual(null, story);
+            if( !testingErrors )
+                Assert.AreNotEqual(null, story);
 
             // Convert to json and back again
-            if (_mode == TestMode.JsonRoundTrip)
+            if (_mode == TestMode.JsonRoundTrip && story != null)
             {
                 var jsonStr = story.ToJsonString();
                 story = new Story(jsonStr);

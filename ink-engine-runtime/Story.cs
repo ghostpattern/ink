@@ -15,7 +15,7 @@ namespace Ink.Runtime
         /// <summary>
         /// The current version of the ink story file format.
         /// </summary>
-        public const int inkVersionCurrent = 15;
+        public const int inkVersionCurrent = 17;
 
         // Version numbers are for engine itself and story file, rather
         // than the story state save format (which is um, currently nonexistant)
@@ -32,13 +32,13 @@ namespace Ink.Runtime
         /// <summary>
         /// The minimum legacy version of ink that can be loaded by the current version of the code.
         /// </summary>
-        const int inkVersionMinimumCompatible = 15;
+        const int inkVersionMinimumCompatible = 16;
 
         /// <summary>
         /// The list of Choice objects available at the current point in
         /// the Story. This list will be populated as the Story is stepped
         /// through with the Continue() method. Once canContinue becomes
-        /// false, this list will be fully populated, and is usually
+        /// false, this list will be populated, and is usually
         /// (but not always) on the final Continue() step.
         /// </summary>
         public List<Choice> currentChoices
@@ -85,6 +85,12 @@ namespace Ink.Runtime
         /// </summary>
         public VariablesState variablesState{ get { return state.variablesState; } }
 
+        internal ListDefinitionsOrigin listDefinitions {
+            get {
+                return _listDefinitions;
+            }
+        }
+
         /// <summary>
         /// The entire current state of the story including (but not limited to):
         /// 
@@ -100,9 +106,13 @@ namespace Ink.Runtime
         // Warning: When creating a Story using this constructor, you need to
         // call ResetState on it before use. Intended for compiler use only.
         // For normal use, use the constructor that takes a json string.
-        internal Story (Container contentContainer)
+        internal Story (Container contentContainer, List<Runtime.ListDefinition> lists = null)
 		{
 			_mainContentContainer = contentContainer;
+
+            if (lists != null)
+                _listDefinitions = new ListDefinitionsOrigin (lists);
+
             _externals = new Dictionary<string, ExternalFunction> ();
 		}
 
@@ -123,13 +133,17 @@ namespace Ink.Runtime
             } else if (formatFromFile < inkVersionMinimumCompatible) {
                 throw new System.Exception ("Version of ink used to build story is too old to be loaded by this verison of the engine");
             } else if (formatFromFile != inkVersionCurrent) {
-                Console.WriteLine ("WARNING: Version of ink used to build story doesn't match current version of engine. Non-critical, but recommend synchronising.");
+                System.Diagnostics.Debug.WriteLine ("WARNING: Version of ink used to build story doesn't match current version of engine. Non-critical, but recommend synchronising.");
             }
                 
             var rootToken = rootObject ["root"];
             if (rootToken == null)
                 throw new System.Exception ("Root node for ink not found. Are you sure it's a valid .ink.json file?");
-            
+
+            object listDefsObj;
+            if (rootObject.TryGetValue ("listDefs", out listDefsObj)) {
+                _listDefinitions = Json.JTokenToListDefinitions (listDefsObj);
+            }
 
             _mainContentContainer = Json.JTokenToRuntimeObject (rootToken) as Container;
 
@@ -146,6 +160,9 @@ namespace Ink.Runtime
             var rootObject = new Dictionary<string, object> ();
             rootObject ["inkVersion"] = inkVersionCurrent;
             rootObject ["root"] = rootContainerJsonList;
+
+            if (_listDefinitions != null)
+                rootObject ["listDefs"] = Json.ListDefinitionsToJToken (_listDefinitions);
 
             return SimpleJson.DictionaryToText (rootObject);
         }
@@ -302,7 +319,13 @@ namespace Ink.Runtime
                             // We're going to continue stepping in case we see glue or some
                             // non-text content such as choices.
                             if( canContinue ) {
-                                stateAtLastNewline = StateSnapshot();
+
+								// Don't bother to record the state beyond the current newline.
+								// e.g.:
+								// Hello world\n			// record state at the end of here
+								// ~ complexCalculation()   // don't actually need this unless it generates text
+								if( stateAtLastNewline == null )
+                                	stateAtLastNewline = StateSnapshot();
                             } 
 
                             // Can't continue, so we're about to exit - make sure we
@@ -329,7 +352,7 @@ namespace Ink.Runtime
                         Error("Thread available to pop, threads should always be flat by the end of evaluation?");
                     }
 
-                    if( currentChoices.Count == 0 && !state.didSafeExit && _temporaryEvaluationContainer == null ) {
+					if( state.generatedChoices.Count == 0 && !state.didSafeExit && _temporaryEvaluationContainer == null ) {
                         if( state.callStack.CanPop(PushPopType.Tunnel) ) {
                             Error("unexpectedly reached end of content. Do you need a '->->' to return from a tunnel?");
                         } else if( state.callStack.CanPop(PushPopType.Function) ) {
@@ -364,7 +387,7 @@ namespace Ink.Runtime
         public bool canContinue
         {
             get {
-                return state.currentContentObject != null && !state.hasError;
+				return state.canContinue;
             }
         }
 
@@ -450,7 +473,7 @@ namespace Ink.Runtime
             if (choicePoint) {
                 var choice = ProcessChoice (choicePoint);
                 if (choice) {
-                    state.currentChoices.Add (choice);
+                    state.generatedChoices.Add (choice);
                 }
 
                 currentContentObj = null;
@@ -510,6 +533,7 @@ namespace Ink.Runtime
             }
         }
 
+		HashSet<Container> _prevContainerSet;
         void VisitChangedContainersDueToDivert()
         {
             var previousContentObject = state.previousContentObject;
@@ -519,11 +543,12 @@ namespace Ink.Runtime
                 return;
             
             // First, find the previously open set of containers
-            var prevContainerSet = new HashSet<Container> ();
+			if( _prevContainerSet == null ) _prevContainerSet = new HashSet<Container> ();
+			_prevContainerSet.Clear();
             if (previousContentObject) {
                 Container prevAncestor = previousContentObject as Container ?? previousContentObject.parent as Container;
                 while (prevAncestor) {
-                    prevContainerSet.Add (prevAncestor);
+					_prevContainerSet.Add (prevAncestor);
                     prevAncestor = prevAncestor.parent as Container;
                 }
             }
@@ -532,7 +557,7 @@ namespace Ink.Runtime
             // content step. However, we need to walk up the new ancestry to see if there are more new containers
             Runtime.Object currentChildOfContainer = newContentObject;
             Container currentContainerAncestor = currentChildOfContainer.parent as Container;
-            while (currentContainerAncestor && !prevContainerSet.Contains(currentContainerAncestor)) {
+			while (currentContainerAncestor && !_prevContainerSet.Contains(currentContainerAncestor)) {
 
                 // Check whether this ancestor container is being entered at the start,
                 // by checking whether the child object is the first.
@@ -823,11 +848,12 @@ namespace Ink.Runtime
                     break;
 
                 case ControlCommand.CommandType.ChoiceCount:
-                    var choiceCount = currentChoices.Count;
+					var choiceCount = state.generatedChoices.Count;
                     state.PushEvaluationStack (new Runtime.IntValue (choiceCount));
                     break;
 
                 case ControlCommand.CommandType.TurnsSince:
+                case ControlCommand.CommandType.ReadCount:
                     var target = state.PopEvaluationStack();
                     if( !(target is DivertTargetValue) ) {
                         string extraNote = "";
@@ -839,8 +865,14 @@ namespace Ink.Runtime
                         
                     var divertTarget = target as DivertTargetValue;
                     var container = ContentAtPath (divertTarget.targetPath) as Container;
-                    int turnCount = TurnsSinceForContainer (container);
-                    state.PushEvaluationStack (new IntValue (turnCount));
+
+                    int eitherCount;
+                    if (evalCommand.commandType == ControlCommand.CommandType.TurnsSince)
+                        eitherCount = TurnsSinceForContainer (container);
+                    else
+                        eitherCount = VisitCountForContainer (container);
+                    
+                    state.PushEvaluationStack (new IntValue (eitherCount));
                     break;
 
                 case ControlCommand.CommandType.Random:
@@ -920,6 +952,78 @@ namespace Ink.Runtime
                     state.ForceEnd ();
                     break;
 
+                case ControlCommand.CommandType.ListFromInt:
+                    var intVal = state.PopEvaluationStack () as IntValue;
+                    var listNameVal = state.PopEvaluationStack () as StringValue;
+
+                    ListValue generatedListValue = null;
+
+                    ListDefinition foundListDef;
+                    if (listDefinitions.TryGetDefinition (listNameVal.value, out foundListDef)) {
+                        InkListItem foundItem;
+                        if (foundListDef.TryGetItemWithValue (intVal.value, out foundItem)) {
+                            generatedListValue = new ListValue (foundItem, intVal.value);
+                        }
+                    } else {
+                        throw new StoryException ("Failed to find LIST called " + listNameVal.value);
+                    }
+
+                    if (generatedListValue == null)
+                        generatedListValue = new ListValue ();
+
+                    state.PushEvaluationStack (generatedListValue);
+                    break;
+
+                case ControlCommand.CommandType.ListRange: {
+                        var max = state.PopEvaluationStack ();
+                        var min = state.PopEvaluationStack ();
+
+                        var targetList = state.PopEvaluationStack () as ListValue;
+
+                        if (targetList == null || min == null || max == null)
+                            throw new StoryException ("Expected list, minimum and maximum for LIST_RANGE");
+
+                        // Allow either int or a particular list item to be passed for the bounds,
+                        // so wrap up a function to handle this casting for us.
+                        Func<Runtime.Object, int> IntBound = (obj) => {
+                            var listValue = obj as ListValue;
+                            if (listValue) {
+                                return (int)listValue.value.maxItem.Value;
+                            }
+
+                            var intValue = obj as IntValue;
+                            if (intValue) {
+                                return intValue.value;
+                            }
+
+                            return -1;
+                        };
+
+                        int minVal = IntBound (min);
+                        int maxVal = IntBound (max);
+                        if (minVal == -1)
+                            throw new StoryException ("Invalid min range bound passed to LIST_VALUE(): " + min);
+
+                        if (maxVal == -1)
+                            throw new StoryException ("Invalid max range bound passed to LIST_VALUE(): " + max);
+
+                        // Extract the range of items from the origin list
+                        ListValue result = new ListValue ();
+                        var origins = targetList.value.origins;
+
+                        if (origins != null) {
+                            foreach(var origin in origins) {
+                                var rangeFromOrigin = origin.ListRange (minVal, maxVal);
+                                foreach (var kv in rangeFromOrigin.value) {
+                                    result.value [kv.Key] = kv.Value;
+                                }
+                            }
+                        }
+                            
+                        state.PushEvaluationStack (result);
+                        break;
+                    }
+
                 default:
                     Error ("unhandled ControlCommand: " + evalCommand);
                     break;
@@ -967,19 +1071,19 @@ namespace Ink.Runtime
                     }
                 }
 
-                state.evaluationStack.Add( foundValue );
+                state.PushEvaluationStack (foundValue);
 
                 return true;
             }
 
             // Native function call
-            else if( contentObj is NativeFunctionCall ) {
-                var func = (NativeFunctionCall) contentObj;
-                var funcParams = state.PopEvaluationStack(func.numberOfParameters);
-                var result = func.Call(funcParams);
-                state.evaluationStack.Add(result);
+            else if (contentObj is NativeFunctionCall) {
+                var func = (NativeFunctionCall)contentObj;
+                var funcParams = state.PopEvaluationStack (func.numberOfParameters);
+                var result = func.Call (funcParams);
+                state.PushEvaluationStack (result);
                 return true;
-            }
+            } 
 
             // No control content, must be ordinary content
             return false;
@@ -1002,14 +1106,17 @@ namespace Ink.Runtime
         /// 
         /// </summary>
         /// <param name="path">A dot-separted path string, as specified above.</param>
-        public void ChoosePathString(string path)
+        /// <param name="arguments">Optional set of arguments to pass, if path is to a knot that takes them.</param>
+        public void ChoosePathString (string path, params object [] arguments)
         {
-            ChoosePath (new Path(path));
+            state.PassArgumentsToEvaluationStack (arguments);
+            ChoosePath (new Path (path));
         }
+
             
-        internal void ChoosePath(Path path)
+        internal void ChoosePath(Path p)
         {
-            state.SetChosenPath (path);
+            state.SetChosenPath (p);
 
             // Take a note of newly visited containers for read counts etc
             VisitChangedContainersDueToDivert ();
@@ -1616,6 +1723,15 @@ namespace Ink.Runtime
             return sb.ToString ();
         }
 
+        string BuildStringOfContainer (Container container)
+        {
+        	var sb = new StringBuilder ();
+
+        	container.BuildStringOfHierarchy (sb, 0, state.currentContentObject);
+
+        	return sb.ToString();
+        }
+
 		private void NextContent()
 		{
             // Setting previousContentObject is critical for VisitChangedContainersDueToDivert
@@ -1919,7 +2035,8 @@ namespace Ink.Runtime
             }
         }
 
-        private Container _mainContentContainer;
+        Container _mainContentContainer;
+        ListDefinitionsOrigin _listDefinitions;
 
         Dictionary<string, ExternalFunction> _externals;
         Dictionary<string, VariableObserver> _variableObservers;

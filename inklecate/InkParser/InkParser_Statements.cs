@@ -75,12 +75,9 @@ namespace Ink
                 // Diverts can go anywhere
                 rulesAtLevel.Add(Line(MultiDivert));
 
-                if (level >= StatementLevel.Top) {
-
-                    // Knots can only be parsed at Top/Global scope
+                // Knots can only be parsed at Top/Global scope
+                if (level >= StatementLevel.Top)
                     rulesAtLevel.Add (KnotDefinition);
-                    rulesAtLevel.Add (ExternalDeclaration);
-                }
 
                 rulesAtLevel.Add(Line(Choice));
 
@@ -98,8 +95,10 @@ namespace Ink
                 }
 
                 // Global variable declarations can go anywhere
+                rulesAtLevel.Add(Line(ListDeclaration));
                 rulesAtLevel.Add(Line(VariableDeclaration));
                 rulesAtLevel.Add(Line(ConstDeclaration));
+                rulesAtLevel.Add(Line(ExternalDeclaration));
 
                 // Global include can go anywhere
                 rulesAtLevel.Add(Line(IncludeStatement));

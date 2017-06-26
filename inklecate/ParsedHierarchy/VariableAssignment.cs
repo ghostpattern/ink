@@ -6,6 +6,7 @@ namespace Ink.Parsed
     {
         public string variableName { get; protected set; }
         public Expression expression { get; protected set; }
+        public ListDefinition listDefinition { get; protected set; }
 
         public bool isGlobalDeclaration { get; set; }
         public bool isNewTemporaryDeclaration { get; set; }
@@ -23,6 +24,19 @@ namespace Ink.Parsed
             // Defensive programming in case parsing of assignedExpression failed
             if( assignedExpression )
                 this.expression = AddContent(assignedExpression);
+        }
+
+        public VariableAssignment (string variableName, ListDefinition listDef)
+        {
+            this.variableName = variableName;
+
+            if (listDef) {
+                this.listDefinition = AddContent (listDef);
+                this.listDefinition.variableAssignment = this;
+            }
+
+            // List definitions are always global
+            isGlobalDeclaration = true;
         }
 
         public override Runtime.Object GenerateRuntimeObject ()
@@ -46,7 +60,10 @@ namespace Ink.Parsed
             var container = new Runtime.Container ();
 
             // The expression's runtimeObject is actually another nested container
-            container.AddContent (expression.runtimeObject);
+            if( expression != null )
+                container.AddContent (expression.runtimeObject);
+            else if( listDefinition != null )
+                container.AddContent (listDefinition.runtimeObject);
 
             container.AddContent (new Runtime.VariableAssignment (variableName, isNewTemporaryDeclaration));
 
@@ -57,24 +74,15 @@ namespace Ink.Parsed
         {
             base.ResolveReferences (context);
 
-            VariableAssignment varDecl = null;
-            if (this.isNewTemporaryDeclaration && story.variableDeclarations.TryGetValue(variableName, out varDecl) ) {
-                if (varDecl.isGlobalDeclaration) {
-                    Error ("global variable '" + variableName + "' already exists with the same name (declared on " + varDecl.debugMetadata + ")");
-                    return;
-                }
-            }
+            // List definitions are checked for conflicts separately
+            if( this.isDeclaration && listDefinition == null )
+                context.CheckForNamingCollisions (this, variableName, this.isGlobalDeclaration ? Story.SymbolType.Var : Story.SymbolType.Temp);
 
             if (this.isGlobalDeclaration) {
                 var variableReference = expression as VariableReference;
-                if (variableReference && !variableReference.isConstantReference) {
-                    Error ("global variable assignments cannot refer to other variables, only literal values and constants");
+                if (variableReference && !variableReference.isConstantReference && !variableReference.isListItemReference) {
+                    Error ("global variable assignments cannot refer to other variables, only literal values, constants and list items");
                 }       
-            }
-
-            if (IsReservedKeyword (variableName)) {
-                Error ("cannot use '" + variableName + "' as a variable since it's a reserved ink keyword");
-                return;
             }
 
             if (!this.isNewTemporaryDeclaration) {
@@ -84,23 +92,20 @@ namespace Ink.Parsed
                     } else {
                         Error ("Variable could not be found to assign to: '" + this.variableName + "'", this);
                     }
-
                 }
             }
         }
 
-        // TODO: Move this somewhere more general?
-        public static bool IsReservedKeyword(string name)
-        {
-            return _reservedKeywords.Contains (name);
+
+        public override string typeName {
+            get {
+                if (isNewTemporaryDeclaration) return "temp";
+                else if (isGlobalDeclaration) return "VAR";
+                else return "variable assignment";
+            }
         }
 
-        static HashSet<string> _reservedKeywords = new HashSet<string>(new string[] { 
-            "true", "false",
-            "not",
-            "return",
-            "else"
-        });
+
     }
 }
 
