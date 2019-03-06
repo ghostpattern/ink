@@ -23,6 +23,9 @@ namespace InkPlugin
 
         public void PostParse(Story parsedStory, CommandLineTool.Options opts)
         {
+            if(parsedStory == null)
+                return;
+
             // Get or generate scene key
             string sceneDataFilePath = opts.outputFile.Replace(".json", ".asset");
             int sceneKey = 0;
