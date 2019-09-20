@@ -113,6 +113,14 @@ namespace InkPlugin
 
                     Knot knot = FindKnotParent(text);
 
+                    if(text.parent != null && text.parent.typeName == "StringExpression")
+                    {
+#if DEBUG
+                        Console.WriteLine("Skipping {0} because text.parent is StringExpression", text);
+#endif
+                        continue;
+                    }
+
                     // If this text has already been processed as a choice,
                     // it will already have a key at the start - don't re-process and
                     // add an unnecessary entry.
