@@ -64,7 +64,7 @@ namespace InkPlugin
             var lineJsonList = new List<object>();
             var knotJsonList = new List<object>();
             
-            var allChoices = parsedStory.FindAll<Choice>();
+            var allChoices = parsedStory.FindAll<Choice>(choice => choice.debugMetadata != null && choice.debugMetadata.fileName == opts.inputFile);
             foreach(Choice choice in allChoices)
             {
                 Knot knot = FindKnotParent(choice);
@@ -100,7 +100,7 @@ namespace InkPlugin
                 }
             }
 
-            var allText = parsedStory.FindAll<Text>();
+            var allText = parsedStory.FindAll<Text>(text => text.debugMetadata != null && text.debugMetadata.fileName == opts.inputFile);
             foreach(Text text in allText)
             {
                 if(text.text != null && text.text.Equals("\n") == false)
@@ -142,11 +142,10 @@ namespace InkPlugin
                 lineJsonList.Add(lineText.text);
             }
 
-            var allKnots = parsedStory.FindAll<Knot>();
+            var allKnots = parsedStory.FindAll<Knot>(knot => knot.debugMetadata != null && knot.debugMetadata.fileName == opts.inputFile);
             foreach(var knot in allKnots)
             {
-                if(knot.debugMetadata.fileName.Equals(opts.inputFile))
-                    knotJsonList.Add(knot.name);
+                knotJsonList.Add(knot.name);
             }
 
             Dictionary<string, object> dataDictionary = new Dictionary<string, object>
