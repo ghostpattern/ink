@@ -103,7 +103,7 @@ namespace InkPlugin
             var allText = parsedStory.FindAll<Text>(text => text.debugMetadata != null && text.debugMetadata.fileName == opts.inputFile);
             foreach(Text text in allText)
             {
-                if(text.text != null && text.text.Equals("\n") == false)
+                if(text.text != null && text.text.Trim(' ', '\n', '\t').Length > 0)
                 {
                     if(text.text.StartsWith("Scene:")
                        || text.text.StartsWith("Trigger:")
