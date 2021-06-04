@@ -90,7 +90,7 @@ class InkTestBed
     		errorHandler = OnError
     	});
 
-    	story = compiler.Compile ();
+    	story = compiler.Compile ("");
         story.onError += OnError;
 
         return story;
@@ -119,7 +119,7 @@ class InkTestBed
     {
         compiler = CreateCompiler(filename);
 
-        story = compiler.Compile ();
+        story = compiler.Compile ("");
         story.onError += OnError;
 
         return story;
