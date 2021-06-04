@@ -22,10 +22,10 @@ namespace Ink
             }
         }
 
-        public void PostParse(Story parsedStory, CommandLineTool.Options opts)
+        public void PostParse(Story parsedStory, string inputFile, string outputFile)
         {
             foreach (var plugin in _plugins) {
-                plugin.PostParse (parsedStory, opts);
+                plugin.PostParse (parsedStory, inputFile, outputFile);
             }
         }
 

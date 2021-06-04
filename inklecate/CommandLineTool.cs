@@ -8,7 +8,7 @@ namespace Ink
 {
 	class CommandLineTool
 	{
-		public class Options {
+		class Options {
             public bool verbose;
 			public bool playMode;
             public bool stats;
@@ -151,7 +151,7 @@ namespace Ink
 
                 // Full compile
                 else
-                    story = compiler.Compile();
+                    story = compiler.Compile(opts.outputFile);
             }
 
             // Opening up a compiled json file for playing

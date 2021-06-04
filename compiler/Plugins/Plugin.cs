@@ -9,7 +9,7 @@ namespace Ink
 
         // Hook for immediately after the story has been parsed into its basic Parsed hierarchy.
         // Could be useful for modifying the story before it's exported.
-        void PostParse(Story parsedStory, CommandLineTool.Options opts);
+        void PostParse(Story parsedStory, string storyInputFile, string storyOutputFile);
 
         // Hook for after parsed story has been converted into its runtime equivalent. Note that
         // during this process the parsed story will have changed structure too, to take into 

@@ -36,12 +36,12 @@ namespace Ink
             return _parsedStory;
         }
 
-        public Runtime.Story Compile ()
+        public Runtime.Story Compile (string outputFile)
         {
             Parse();
 
             if( _pluginManager != null )
-                _pluginManager.PostParse(_parsedStory);
+                _pluginManager.PostParse(_parsedStory, _options.sourceFilename, outputFile);
 
             if (_parsedStory != null && !_hadParseError) {
 
