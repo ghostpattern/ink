@@ -83,7 +83,7 @@ namespace InkPlugin
                     // If this text has already been processed as a choice,
                     // it will already have a key at the start - don't re-process and
                     // add an unnecessary entry.
-                    if(choiceTextList.Exists(t => string.Equals(t.text, text.text) == false))
+                    if(!choiceTextList.Exists(t => string.Equals(t.text, text.text)))
                     {
                         lineTextList.Add(text);
                     }
