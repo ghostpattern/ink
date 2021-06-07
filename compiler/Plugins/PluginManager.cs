@@ -14,7 +14,9 @@ namespace Ink
             foreach (string pluginName in pluginNames) {
                 //if (pluginName == "ChoiceListPlugin") {
                 //    _plugins.Add (new InkPlugin.ChoiceListPlugin ());
-                if (pluginName == "ExtraDataOutputPlugin") {
+                if (pluginName == "PrefixLineIdentifierPlugin") {
+                    _plugins.Add (new InkPlugin.PrefixLineIdentifierPlugin());
+                } else if (pluginName == "ExtraDataOutputPlugin") {
                     _plugins.Add (new InkPlugin.ExtraDataOutputPlugin());
                 } else {
                     throw new System.Exception ("Plugin not found");
