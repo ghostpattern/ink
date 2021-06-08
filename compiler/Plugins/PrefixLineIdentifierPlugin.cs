@@ -100,8 +100,7 @@ namespace InkPlugin
                     }
 
                     // If this text has already been processed as a choice,
-                    // it will already have a key at the start - don't re-process and
-                    // add an unnecessary entry.
+                    // it will already have a key at the start - don't re-process.
                     if(text.text.StartsWith(sceneKeyAsString) == false)
                     {
                         text.text = ProcessLineKey(text.text, sceneKey, knot);

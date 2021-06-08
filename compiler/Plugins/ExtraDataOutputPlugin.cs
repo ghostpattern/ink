@@ -80,10 +80,10 @@ namespace InkPlugin
                         continue;
                     }
 
-                    // If this text has already been processed as a choice,
-                    // it will already have a key at the start - don't re-process and
+                    // If this text instance has already been processed as a choice,
+                    // it will already be in the line text list, and that's okay - don't re-process and
                     // add an unnecessary entry.
-                    if(!choiceTextList.Exists(t => string.Equals(t.text, text.text)))
+                    if(!choiceTextList.Contains(text))
                     {
                         lineTextList.Add(text);
                     }
