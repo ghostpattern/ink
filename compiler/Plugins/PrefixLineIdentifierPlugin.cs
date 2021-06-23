@@ -84,6 +84,7 @@ namespace InkPlugin
                 if(text.text != null && text.text.Trim(' ', '\n', '\t').Length > 0)
                 {
                     if(text.text.StartsWith("Scene:")
+                       || text.text.StartsWith("CharacterVoiceSource")
                        || text.text.StartsWith("Trigger:")
                        || text.text.StartsWith("<Trigger:")
                        || text.text.StartsWith("Action:"))
